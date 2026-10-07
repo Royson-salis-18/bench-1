@@ -1,0 +1,31 @@
+id: sf-05-secret-rotation
+title: Rotated database password; one service still has the old one
+class: deployment / configuration drift
+verified: docker
+summary: >
+  The orders database password was rotated. orders-db has the new password, but the orders deployment still carries the old
+  secret. orders retries the connection 5 times, logs the error, exits 1, and the restart policy brings it back -- forever.
+  The container is "running" for a few seconds out of every cycle, so a casual `docker ps` can look alive.
+why_code_review_and_tests_pass: "No code changed. The failure is entirely in the gap between two deployments."
+production_condition: "ORDERS_DB_PASSWORD (app side) != POSTGRES_PASSWORD (db side)"
+load: { command: "node lab/loadgen.mjs shopflow --concurrency 10 --duration 180 --users 200" }
+ground_truth: { root_cause: orders, symptomatic: [api-gateway, notifier], note: "orders is the failing service; orders-db is healthy" }
+mapper_signals:
+  - { signal: "orders status exited/restarting, restartCount climbing", where: container state, strength: strong }
+  - { signal: "orders -> orders-db edge is DECLARED (compose) but never OBSERVED", where: edge, strength: strong, note: "the canonical declared-vs-observed case; orders-db itself is healthy" }
+  - { signal: "gateway 502 on /api/orders and /api/checkout; /api/catalog unaffected", where: Tier-1 gateway log, strength: strong }
+  - { signal: "notifier -> orders edge disappears (nothing to fetch), event-bus idle", where: edge, strength: partial }
+mapper_blind_spots:
+  - "Does not know WHY orders cannot connect (password vs network vs DNS). It narrows it to 'orders cannot reach a healthy orders-db'; the container's own log says 'password authentication failed'."
+expect:
+  edges:
+    - { source: orders, target: orders-db, declared: true, observed: false }
+  nodes_unhealthy_at_some_point: [orders]
+  incident: { root_cause_any_of: [orders] }
+fix: "roll the secret to orders; make secret rotation a single atomic deploy; alert on restart loops"
+measured_in_docker:    # real postgres:16 with scram auth
+  orders_restarts_in_45s: 7
+  orders_log: 'password authentication failed for user "app"'
+  orders_db_health: healthy
+  gateway: { "/api/catalog": 200, "/api/orders": 502 }
+

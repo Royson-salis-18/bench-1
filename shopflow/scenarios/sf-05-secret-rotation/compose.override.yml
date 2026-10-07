@@ -1,0 +1,5 @@
+# The DB password was rotated; the database has the new one, the orders deployment still holds the old
+# secret. orders gives up after 5 attempts (exit 1) and the restart policy loops it forever.
+services:
+  orders:
+    environment: { ORDERS_DB_PASSWORD: "old-rotated-secret", DB_CONNECT_RETRIES: "5" }

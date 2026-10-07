@@ -1,0 +1,25 @@
+id: sf-02-cache-thrash
+title: Cache sized for staging evicts itself in production
+class: capacity / infrastructure sizing
+verified: local-process
+summary: >
+  catalog-cache is Redis with maxmemory 1mb and allkeys-lru: plenty for a staging catalogue of a few hundred products, far too
+  small for production. Keys are evicted before they are re-read, hit rate collapses, and traffic that should have been absorbed
+  by the cache lands on catalog-db. Nothing errors: pages get slower and the database gets busier.
+why_code_review_and_tests_pass: >
+  Cache-aside code is correct and degrades gracefully by design. Functional tests cannot see a hit rate.
+production_condition: "catalog-cache --maxmemory 1mb against a 5,000-product catalogue"
+load: { command: "node lab/loadgen.mjs shopflow --concurrency 40 --duration 300 --users 500 --mix browse=100" }
+measured_locally: { hit_rate_baseline: "56%", hit_rate_thrashing: "33%", evicted_keys_baseline: 0, evicted_keys_thrashing: 3881 }
+ground_truth: { root_cause: catalog-cache, symptomatic: [catalog-db, catalog] }
+mapper_signals:
+  - { signal: "catalog-db CPU rises from a quiet baseline (z-score, not absolute)", where: node metric, strength: partial }
+  - { signal: "catalog-cache network I/O pattern changes (churn)", where: node metric, strength: partial }
+  - { signal: "catalog -> catalog-db edge activity increases relative to catalog -> catalog-cache", where: edge, strength: partial }
+mapper_blind_spots:
+  - "Cache hit rate and eviction counters are not visible from outside the container; the mapper sees their consequences only."
+  - "Absolute thresholds (70/85%) will NOT fire. This scenario checks that z-score detection is sensitive enough."
+expect:
+  nodes_unhealthy_at_some_point: []      # soft scenario: success is a Finding/low-severity anomaly, not an outage
+  incident: { optional: true }
+fix: "size maxmemory from catalogue size x average value size x headroom; alert on keyspace_misses/(hits+misses)"

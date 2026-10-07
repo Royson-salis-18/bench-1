@@ -1,0 +1,24 @@
+id: sf-10-poison-message
+title: One un-processable message stops every confirmation e-mail
+class: asynchronous failure / silent degradation
+verified: local-process
+summary: >
+  A rolling deploy puts orders on event schema v2 while notifier still understands only v1. notifier is configured for strict
+  ordering (max one message in flight), redelivers immediately, retries forever and has no dead-letter queue. The first v2
+  message is rejected and redelivered in a hot loop; nothing behind it is ever processed. Customers see NO errors -- checkout
+  works -- they simply stop receiving e-mails. In production this is usually found from support tickets hours later.
+why_code_review_and_tests_pass: "Producer and consumer were each correct for the version they were built against."
+production_condition: "ORDER_EVENT_SCHEMA=2 on orders; notifier MAX_ACK_PENDING=1, MAX_DELIVER=-1, NAK_DELAY=0"
+load: { command: "node lab/loadgen.mjs shopflow --concurrency 5 --duration 120 --users 500 --mix browse=0,cart=0,checkout=100" }
+measured_locally: { user_facing_5xx_pct: 0, backlog_after_10s: 507, handler_failures_in_20s: 42402, confirmations_sent: 0, notifier_cpu_pct: 35, nats_cpu_pct: 28 }
+ground_truth: { root_cause: notifier, symptomatic: [event-bus], note: "customer-facing services stay healthy" }
+mapper_signals:
+  - { signal: "notifier CPU jumps from near-idle to sustained load with no change in user traffic", where: node metric, strength: strong }
+  - { signal: "event-bus CPU and network rise (redelivery churn); notifier -> event-bus edge activity spikes", where: node + edge, strength: strong }
+  - { signal: "gateway shows ZERO errors", where: Tier-1 gateway log, strength: strong, note: "the contrast is the diagnosis: busy consumer, healthy front door" }
+mapper_blind_spots:
+  - "The backlog depth and the poisoned message are inside NATS; the mapper reports the hot loop, not the schema mismatch."
+expect:
+  nodes_unhealthy_at_some_point: [notifier]
+  incident: { root_cause_any_of: [notifier, event-bus] }
+fix: "bounded max_deliver + dead-letter subject, tolerant reader / versioned consumers, consumer-lag alert"

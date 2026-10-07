@@ -1,0 +1,22 @@
+id: sf-11-wrong-hostname
+title: A renamed service still referenced by its old name
+class: configuration drift / silent degradation
+verified: local-process
+summary: >
+  catalog was once named "catalogue". cart's CATALOG_URL still says http://catalogue:3001. DNS cannot resolve it, so cart's
+  price validation fails and cart FAILS OPEN (accepts the client-supplied price) -- a deliberate "never lose a sale" decision.
+  Nothing returns an error. Prices are no longer validated server-side and nobody knows.
+why_code_review_and_tests_pass: "The fail-open path is tested and works; that is exactly why this is silent."
+production_condition: "CATALOG_URL=http://catalogue:3001 on cart"
+load: { command: "node lab/loadgen.mjs shopflow --concurrency 10 --duration 180 --users 200 --mix browse=30,cart=70" }
+ground_truth: { root_cause: null, finding: "declared edge cart -> catalog is never observed" }
+mapper_signals:
+  - { signal: "cart -> catalog edge DECLARED (depends_on) but NOT OBSERVED, while api-gateway -> catalog is observed (so catalog is alive and reachable)", where: edge, strength: strong }
+  - { signal: "catalog receives only gateway traffic; per-product reads from cart are gone", where: edge, strength: partial }
+mapper_blind_spots: ["Business impact (unvalidated prices) is invisible; the mapper reports the broken wire."]
+expect:
+  edges:
+    - { source: cart, target: catalog, declared: true, observed: false }
+    - { source: api-gateway, target: catalog, declared: true, observed: true }
+  incident: null
+fix: "fix the hostname; alert on fail-open counter; add a startup self-test that resolves every configured upstream"

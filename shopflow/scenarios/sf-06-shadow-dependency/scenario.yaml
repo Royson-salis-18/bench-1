@@ -1,0 +1,20 @@
+id: sf-06-shadow-dependency
+title: A dependency that exists only in the code
+class: undocumented dependency / hidden blast radius
+verified: local-process
+summary: >
+  notifier now calls catalog directly to put product names in confirmation e-mails. The feature flag is on in production; the
+  compose file's depends_on and every architecture diagram still say notifier needs only event-bus and orders. Nothing is
+  broken today. But catalog is now in the blast radius of every e-mail, a fact nobody on the team knows until catalog is down
+  or being restarted for a deploy and e-mails start degrading.
+why_code_review_and_tests_pass: "The change was reviewed as a small feature; dependency documentation lives somewhere else."
+production_condition: "NOTIFIER_ENRICH_FROM_CATALOG=true"
+load: { command: "node lab/loadgen.mjs shopflow --concurrency 10 --duration 180 --users 200 --mix browse=30,cart=30,checkout=40" }
+ground_truth: { root_cause: null, finding: "undeclared edge notifier -> catalog" }
+mapper_signals:
+  - { signal: "notifier -> catalog edge is OBSERVED but not DECLARED", where: edge, strength: strong, note: "no incident; this is a topology finding, the mapper's core differentiator" }
+expect:
+  edges:
+    - { source: notifier, target: catalog, declared: false, observed: true }
+  incident: null
+fix: "add the dependency to compose/service catalogue, give it a timeout + fallback (already present), include it in runbooks"

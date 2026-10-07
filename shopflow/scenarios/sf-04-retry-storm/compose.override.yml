@@ -1,0 +1,9 @@
+# Retry settings copied from a load-test profile ("retry hard, no backoff") plus a PSP quota that
+# production traffic exceeds. Two tiers retry independently, so attempts multiply (5 x 5).
+services:
+  psp-sandbox:
+    environment: { PSP_RATE_LIMIT_RPS: "40" }
+  payments:
+    environment: { PSP_RETRY_MAX: "4", PSP_RETRY_BACKOFF_MS: "0" }
+  orders:
+    environment: { PAYMENTS_RETRY_MAX: "4", PAYMENTS_RETRY_BACKOFF_MS: "0" }

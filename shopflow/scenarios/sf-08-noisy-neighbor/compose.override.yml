@@ -1,0 +1,11 @@
+# Merchandising scheduled the catalogue export every few seconds "to keep the dashboard fresh". catalog and
+# inventory share one Postgres instance, so the export's CPU is taken from the checkout path.
+services:
+  merch-export:
+    image: curlimages/curl:8.10.1
+    restart: always
+    entrypoint: ["sh", "-c", "while true; do curl -s -o /dev/null http://catalog:3001/export; done"]
+    depends_on: [catalog]
+    mem_limit: 32m
+  catalog-db:
+    cpus: 1.0

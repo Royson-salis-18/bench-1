@@ -1,0 +1,39 @@
+id: sf-01-missing-index
+title: Order history is fast in staging, melts the database in production
+class: capacity / data volume
+verified: local-process      # mechanism reproduced; numbers below were measured
+summary: >
+  GET /orders?userId= filters by user_id and sorts by created_at. The schema indexes only the primary key. With staging's
+  5,000 rows the query takes 1 ms and passes review, load tests and QA. Production has 2,000,000 historical orders, so every
+  history request is a sequential scan of 440 MB. A handful of concurrent users pin orders-db's CPU; orders' pool of 10
+  connections fills; checkout (same pool) queues behind history reads; the gateway starts returning 502/504.
+why_code_review_and_tests_pass: >
+  The query is correct and idiomatic. Every test runs on a small dataset. Nothing is wrong until the table is large.
+production_condition: "orders-db holds 2M rows (SEED_ORDERS=2000000) on a 1-CPU host"
+load: { command: "node lab/loadgen.mjs shopflow --concurrency 40 --duration 300 --users 500 --mix browse=20,cart=70,checkout=10" }
+measured_locally:
+  idle_history_query_ms: 90        # vs ~1 ms at 5k rows
+  history_p50_under_12_concurrent_ms: 566
+timeline:
+  - "t+0   traffic starts; orders-db CPU climbs from ~0% to saturation"
+  - "t+10s orders pool saturates; /orders and /checkout latency rises"
+  - "t+30s gateway upstream timeouts -> 502/504 on /api/orders and /api/checkout"
+ground_truth:
+  root_cause: orders-db
+  symptomatic: [orders, api-gateway]
+  propagation: [orders-db, orders, api-gateway]
+mapper_signals:
+  - { signal: "orders-db CPU jumps from near-zero to saturation", where: node metric, strength: strong, rule: "z-score / absolute CPU", note: "earliest anomaly in the system" }
+  - { signal: "orders-db memory/network rise (page cache, result traffic)", where: node metric, strength: partial }
+  - { signal: "orders CPU stays LOW while its dependency burns", where: node metric, strength: strong, note: "distinguishes 'orders is slow' from 'orders is waiting'" }
+  - { signal: "gateway 502/504 on /api/orders, /api/checkout; request_time >> upstream baseline", where: Tier-1 gateway log, strength: strong }
+  - { signal: "orders -> orders-db edge activity (samplesPerMin) rises as pool fills to 10", where: edge, strength: partial }
+mapper_blind_spots:
+  - "Cannot show WHICH query is slow or that an index is missing; it narrows the incident to orders-db, a developer finds the query."
+expect:
+  nodes_unhealthy_at_some_point: [orders-db]
+  incident: { root_cause_any_of: [orders-db], affected_includes: [orders] }
+fix: "create index concurrently orders_user_created_idx on orders(user_id, created_at desc)"
+developer_time_saved: >
+  Without the mapper the symptom page is "checkout 502s / orders slow", which sends people to orders, payments and the
+  gateway first. The CPU signature points at orders-db within one polling interval.

@@ -1,0 +1,3 @@
+apiVersion: 1
+providers:
+  - { name: bench, type: file, disableDeletion: true, updateIntervalSeconds: 30, options: { path: /var/lib/grafana/dashboards } }

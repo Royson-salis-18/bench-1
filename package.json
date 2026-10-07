@@ -1,0 +1,14 @@
+{
+  "name": "bench-1",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "ShopFlow test bench: a containerised microservice system with observability, always-on traffic and failure scenarios with ground truth.",
+  "scripts": {
+    "install:all": "cd shopflow && npm ci && cd ../lab && npm ci",
+    "check:syntax": "for f in shopflow/services/*/index.js shopflow/lib/*.js; do node --check $f || exit 1; done; echo syntax ok",
+    "validate": "node lab/validate.mjs",
+    "test": "npm run check:syntax && npm run validate",
+    "test:api": "make -C shopflow test"
+  }
+}

@@ -1,0 +1,24 @@
+id: sf-09-cpu-throttle
+title: Slow but healthy -- a container throttled at a quarter of a core
+class: resource sizing / CFS throttling
+verified: docker
+summary: >
+  catalog was moved to a container limited to 0.25 CPU. It never crashes and never errors; it simply cannot do more than a
+  quarter of a core of work, so latency grows with load. docker stats reports CPU relative to ONE core, so the service plateaus
+  at ~25% -- below any sensible absolute alert threshold -- while being completely CPU-starved.
+why_code_review_and_tests_pass: "No code involved; the limit was copied from a smaller service."
+production_condition: "catalog cpus=0.25, MAX_PAGE=500 (large JSON responses), 40+ concurrent shoppers"
+load: { command: "node lab/loadgen.mjs shopflow --concurrency 40 --duration 300 --users 500 --mix browse=100" }
+ground_truth: { root_cause: catalog, symptomatic: [api-gateway, cart] }
+mapper_signals:
+  - { signal: "catalog CPU jumps from its baseline to a flat ceiling near 25%", where: node metric, strength: partial, note: "caught by the z-score / flatline-delta rule, NOT by the 70/85% absolute thresholds" }
+  - { signal: "gateway latency on /api/catalog rises; cart add-to-cart fails open (price validation timeouts)", where: Tier-1 gateway log, strength: strong }
+mapper_blind_spots:
+  - "The mapper cannot see cgroup throttle counters (nr_throttled). A flat ceiling is the only clue; the scenario tests that it is noticed."
+expect:
+  incident: { optional: true, root_cause_any_of: [catalog] }
+measured_in_docker:    # cpus=0.25 (NanoCpus=250000000), 40 concurrent clients
+  catalog_cpu_pct_samples: [25.9, 26.1, 25.5, 27.0]     # flat ceiling, far below the 70/85 absolute rules
+  errors_5xx_pct: 0
+  latency: { p50_ms: 59, p95_ms: 266 }
+

@@ -1,0 +1,12 @@
+# catalog declares a dependency on recommendations, but the feature flag is OFF in this environment:
+# the container runs, holds memory, and is never called.
+services:
+  recommendations:
+    restart: always
+    build: { context: ., dockerfile: services/recommendations/Dockerfile }
+    environment: { SERVICE_NAME: recommendations }
+    mem_limit: 128m
+  catalog:
+    environment: { RECS_ENABLED: "false", RECOMMENDATIONS_URL: "http://recommendations:3008" }
+    depends_on:
+      recommendations: { condition: service_started }

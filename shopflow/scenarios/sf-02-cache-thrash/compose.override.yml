@@ -1,0 +1,6 @@
+# The cache was sized for the staging catalogue (a few hundred products). Production has thousands.
+services:
+  catalog-cache:
+    command: ["redis-server", "--maxmemory", "1mb", "--maxmemory-policy", "allkeys-lru", "--save", ""]
+  catalog-db:
+    cpus: 1.0

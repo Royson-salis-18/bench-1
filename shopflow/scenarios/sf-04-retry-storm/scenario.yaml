@@ -1,0 +1,35 @@
+id: sf-04-retry-storm
+title: A third party throttles us; our own retries make it ten times worse
+class: cascading failure / retry amplification
+verified: local-process
+summary: >
+  The PSP enforces a per-account quota (40 rps here). Production checkout traffic exceeds it, so the PSP starts answering 429.
+  payments retries 4 times with no backoff, and orders retries payments 4 times with no backoff: each checkout can generate up
+  to 25 PSP calls. The extra load keeps the PSP over quota, so even more requests fail -- a self-sustaining storm. The PSP
+  itself is healthy (low CPU); it is merely saying "no".
+why_code_review_and_tests_pass: >
+  Both retry layers are individually reasonable. Their product is a design property nobody reviewed. The settings are plain env
+  values (copied from a load-test profile).
+production_condition: "PSP quota 40 rps; PAYMENTS_RETRY_MAX=4 and PSP_RETRY_MAX=4 with 0 ms backoff"
+load: { command: "node lab/loadgen.mjs shopflow --concurrency 30 --duration 300 --users 500 --mix browse=0,cart=0,checkout=100 --think-ms 0" }
+measured_locally:
+  checkouts: 3644
+  psp_requests: 72058          # ~20x amplification
+  psp_responses: { "200": 1040, "429": 71018 }
+  gateway_checkout_status: { "201": 1017, "402": 23, "409": 5, "502": 2599 }   # 71% failure
+ground_truth:
+  root_cause: psp-sandbox          # third-party throttling is the trigger ...
+  amplifier: [payments, orders]    # ... our retry policy is what turns it into an outage
+  symptomatic: [orders, api-gateway]
+mapper_signals:
+  - { signal: "payments -> psp-sandbox edge activity (samplesPerMin) rises by an order of magnitude", where: edge, strength: strong }
+  - { signal: "payments and orders CPU/network rise with no change in user traffic", where: node metric, strength: strong }
+  - { signal: "gateway 502 rate on /api/checkout approaches 70%", where: Tier-1 gateway log, strength: strong }
+  - { signal: "psp-sandbox CPU stays low", where: node metric, strength: partial, note: "a resource-only RCA will NOT blame it" }
+mapper_blind_spots:
+  - "The 429s are internal to payments->psp; they are not in any log the mapper reads. Root-causing to the PSP needs the edge-volume signal, not CPU."
+  - "This is the hardest scenario for a metrics-only RCA: the true origin is healthy by every resource metric. Record what the mapper concludes -- it is a measure of RCA depth, not a pass/fail on detection."
+expect:
+  nodes_unhealthy_at_some_point: [payments, orders]
+  incident: { root_cause_any_of: [payments, orders, psp-sandbox] }
+fix: "retry budget at ONE layer, exponential backoff with jitter, honour Retry-After, circuit breaker, request quota alert"

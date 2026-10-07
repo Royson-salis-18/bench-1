@@ -1,0 +1,5 @@
+# catalog was moved from a 4-vCPU VM to a container with a quarter of a core ("it's mostly cached, it'll be fine").
+services:
+  catalog:
+    cpus: 0.25
+    environment: { MAX_PAGE: "500" }

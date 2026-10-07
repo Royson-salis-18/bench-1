@@ -1,0 +1,11 @@
+# Test/dev overlay: publish every internal service on 127.0.0.1 so API tests (and curl) can reach each service directly.
+# NOT part of the production-style baseline, where only the gateway is public.
+services:
+  catalog:         { ports: ["127.0.0.1:3001:3001"] }
+  cart:            { ports: ["127.0.0.1:3002:3002"] }
+  inventory:       { ports: ["127.0.0.1:3003:3003"] }
+  payments:        { ports: ["127.0.0.1:3004:3004"] }
+  orders:          { ports: ["127.0.0.1:3005:3005"] }
+  notifier:        { ports: ["127.0.0.1:3006:3006"] }
+  psp-sandbox:     { ports: ["127.0.0.1:4000:4000"] }
+  event-bus:       { ports: ["127.0.0.1:4222:4222"] }

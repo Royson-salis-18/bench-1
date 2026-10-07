@@ -1,0 +1,16 @@
+{
+  "name": "@subjects/shopflow",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "shopflow: self-contained microservice system (services, shared service library, Dockerfiles, compose, tests).",
+  "dependencies": {
+    "ioredis": "^5.4.1",
+    "nats": "^2.28.2",
+    "pg": "^8.13.0"
+  },
+  "scripts": {
+    "test": "node --test tests/api.test.mjs",
+    "start:local": "echo use docker compose up"
+  }
+}

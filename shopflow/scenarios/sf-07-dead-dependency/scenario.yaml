@@ -1,0 +1,18 @@
+id: sf-07-dead-dependency
+title: A declared dependency nobody calls
+class: stale configuration / wasted capacity
+verified: compose-validated
+summary: >
+  catalog declares depends_on recommendations (started in every environment), but the feature flag is off here, so no request
+  ever reaches it. The container holds memory and a restart policy, shows up on diagrams as a dependency, and an on-call
+  engineer will waste time wondering whether it matters during an incident.
+production_condition: "RECS_ENABLED=false while compose still declares and starts the dependency"
+load: { command: "node lab/loadgen.mjs shopflow --concurrency 10 --duration 180 --users 200 --mix browse=100" }
+ground_truth: { root_cause: null, finding: "declared-only edge catalog -> recommendations" }
+mapper_signals:
+  - { signal: "catalog -> recommendations is DECLARED, never OBSERVED; recommendations has ~0 CPU and flat network", where: edge + node, strength: strong }
+expect:
+  edges:
+    - { source: catalog, target: recommendations, declared: true, observed: false }
+  incident: null
+fix: "remove the dependency or enable the flag; do not run containers nothing calls"

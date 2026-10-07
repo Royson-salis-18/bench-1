@@ -1,0 +1,29 @@
+id: sf-00-baseline
+title: Healthy baseline (control group)
+class: control
+summary: >
+  ShopFlow exactly as designed: complete depends_on, sane pools and timeouts, bounded caches. The mapper should
+  draw declared == observed and raise nothing. Run this first and keep the result: every false positive here is a
+  threshold problem in the mapper, not a defect in the subject.
+production_condition: none
+load: { command: "node lab/loadgen.mjs shopflow --concurrency 20 --duration 600 --users 500", note: "steady 250-300 rps" }
+ground_truth: { root_cause: null, symptomatic: [] }
+expect:
+  edges:   # every runtime dependency, declared in compose AND seen on the wire
+    - { source: api-gateway, target: catalog,    declared: true, observed: true }
+    - { source: api-gateway, target: cart,       declared: true, observed: true }
+    - { source: api-gateway, target: orders,     declared: true, observed: true }
+    - { source: cart,        target: catalog,    declared: true, observed: true }
+    - { source: cart,        target: cart-store, declared: true, observed: true }
+    - { source: catalog,     target: catalog-db, declared: true, observed: true }
+    - { source: catalog,     target: catalog-cache, declared: true, observed: true }
+    - { source: orders,      target: orders-db,  declared: true, observed: true }
+    - { source: orders,      target: cart,       declared: true, observed: true }
+    - { source: orders,      target: inventory,  declared: true, observed: true }
+    - { source: orders,      target: payments,   declared: true, observed: true }
+    - { source: orders,      target: event-bus,  declared: true, observed: true }
+    - { source: inventory,   target: catalog-db, declared: true, observed: true }
+    - { source: payments,    target: psp-sandbox, declared: true, observed: true }
+    - { source: notifier,    target: event-bus,  declared: true, observed: true }
+    - { source: notifier,    target: orders,     declared: true, observed: true }
+  incident: null

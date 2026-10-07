@@ -1,0 +1,37 @@
+id: sf-03-unbounded-cache
+title: Memory climbs for an hour, then the container is OOM-killed
+class: resource leak (configuration-induced)
+verified: docker + local-process
+summary: >
+  cart keeps a "recently viewed" structure in process memory, capped by RECENT_MAX_ENTRIES. The cap's documentation says
+  "0 means no limit"; a config cleanup set it to 0 and sized the container's memory limit for the old behaviour. With real
+  traffic (many distinct users) the Map grows without bound until the kernel OOM-kills the container; restart: always
+  brings it back empty and the cycle repeats. Latency is fine until the end, which is why this is found in production.
+why_code_review_and_tests_pass: >
+  The code is correct for any bounded setting. A load test with 50 synthetic users never reaches the limit.
+production_condition: "RECENT_MAX_ENTRIES=0, cart mem_limit=192m, user cardinality in the hundreds of thousands"
+load: { command: "node lab/loadgen.mjs shopflow --concurrency 30 --duration 1800 --users 2000000 --mix browse=10,cart=90" }
+measured_locally: { cart_rss_start_mb: 68, cart_rss_after_30s_at_2000rps_mb: 230, growth_mb_per_s_at_2000rps: 5.4 }
+timeline:
+  - "t+0     cart RSS ~70 MB"
+  - "t+...   RSS climbs linearly with distinct users seen (rate = request rate)"
+  - "limit  OOM-kill (exit 137) -> restart -> RSS back to ~70 MB -> repeat; orders/checkout see 502 during each restart"
+ground_truth: { root_cause: cart, symptomatic: [orders, api-gateway] }
+mapper_signals:
+  - { signal: "cart memoryPercent rises monotonically (z-score then >70% HIGH, >85% CRITICAL)", where: node metric, strength: strong }
+  - { signal: "cart container state exited / restartCount increments", where: container state, strength: strong }
+  - { signal: "gateway 502 bursts on /api/cart and /api/checkout at each restart", where: Tier-1 gateway log, strength: strong }
+  - { signal: "cart CPU stays flat -- not a CPU problem", where: node metric, strength: partial, note: "rules out the tempting wrong answer" }
+mapper_blind_spots:
+  - "Cannot show that the growth is a Map in the cart process; it shows memory growth in cart. The ML pipeline should flag the trend before the rules do."
+  - "Slow ramps below the absolute threshold are the case for the z-score / ML Findings path."
+expect:
+  nodes_unhealthy_at_some_point: [cart]
+  incident: { root_cause_any_of: [cart] }
+fix: "bound the structure (LRU with a hard cap), make 0 invalid, alert on RSS slope"
+measured_in_docker:    # real container, mem_limit 192m, 30 concurrent clients, 3M distinct users
+  cart_mem_pct_over_time: "19% (t+5s) -> 35% -> 54% -> 75% (t+65s) -> 95% (t+85s) -> container restarted -> 13%"
+  restart_count: 1
+  gateway_5xx_during_restart_burst_pct: 74
+  note: "Docker reported OOMKilled=false for the restarted instance; the restart count and the 5xx burst are the reliable evidence"
+

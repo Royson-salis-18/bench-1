@@ -1,0 +1,61 @@
+# shopflow observability: a SEPARATE compose project (shopflow-obs) that attaches to the application's network.
+# Kept apart on purpose: the application project stays exactly what a mapper should discover, and monitoring can be started/stopped independently.
+#   make obs-up   |   make obs-down        (needs the app project to be running first: it joins the shopflow_default network)
+# Everything listens on 127.0.0.1 only -- reach it through an SSH tunnel:  ssh -L 3000:localhost:3000 -L 9090:localhost:9090 <host>
+name: shopflow-obs
+
+services:
+  prometheus:
+    image: prom/prometheus:v3.2.1
+    restart: always
+    command: ["--config.file=/etc/prometheus/prometheus.yml", "--storage.tsdb.retention.time=24h", "--web.enable-lifecycle"]
+    ports: ["127.0.0.1:9090:9090"]
+    volumes: ["./observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro"]
+    networks: [default, app]
+    mem_limit: 192m
+
+  docker-exporter:               # per-container CPU / memory / network / restarts / OOM / health, from the Docker API (same numbers as `docker stats`)
+    image: shopflow/docker-exporter:dev
+    build: ./observability/exporter
+    restart: always
+    environment: { PROJECT: shopflow }
+    volumes: ["/var/run/docker.sock:/var/run/docker.sock:ro"]
+    networks: [default]
+    mem_limit: 64m
+
+  loki:
+    image: grafana/loki:3.4.2
+    restart: always
+    command: ["-config.file=/etc/loki/loki.yml"]
+    volumes: ["./observability/loki.yml:/etc/loki/loki.yml:ro", "loki-data:/loki"]
+    networks: [default]
+    mem_limit: 192m
+
+  promtail:                      # ships every shopflow container's stdout/stderr (JSON lines) to Loki
+    image: grafana/promtail:3.4.2
+    restart: always
+    command: ["-config.file=/etc/promtail/promtail.yml"]
+    volumes: ["./observability/promtail.yml:/etc/promtail/promtail.yml:ro", "/var/run/docker.sock:/var/run/docker.sock:ro"]
+    networks: [default]
+    depends_on: [loki]
+    mem_limit: 96m
+
+  grafana:
+    image: grafana/grafana:11.5.2
+    restart: always
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-bench}
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+      GF_USERS_DEFAULT_THEME: dark
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /var/lib/grafana/dashboards/bench.json
+    ports: ["127.0.0.1:3000:3000"]
+    volumes: ["./observability/grafana/provisioning:/etc/grafana/provisioning:ro", "./observability/grafana/dashboards:/var/lib/grafana/dashboards:ro", "grafana-data:/var/lib/grafana"]
+    networks: [default]
+    depends_on: [prometheus, loki]
+    mem_limit: 192m
+
+networks:
+  app: { external: true, name: shopflow_default }
+
+volumes: { loki-data: {}, grafana-data: {} }

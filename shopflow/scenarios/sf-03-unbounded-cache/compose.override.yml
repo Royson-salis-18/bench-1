@@ -1,0 +1,6 @@
+# Config drift: 0 was read as "disabled" for the in-process recent-views cap, and the container got a
+# memory limit sized for the old (bounded) behaviour.
+services:
+  cart:
+    environment: { RECENT_MAX_ENTRIES: "0", RECENT_ENTRY_BYTES: "4096" }
+    mem_limit: 192m

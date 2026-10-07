@@ -1,0 +1,5 @@
+# catalog was renamed from "catalogue" months ago. One service still has the old name in its environment.
+# Docker DNS cannot resolve it, cart fails open (by product decision) and nothing visibly breaks.
+services:
+  cart:
+    environment: { CATALOG_URL: "http://catalogue:3001" }

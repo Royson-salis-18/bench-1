@@ -1,0 +1,28 @@
+id: sf-08-noisy-neighbor
+title: A reporting job on the shared database slows checkout
+class: shared infrastructure contention
+verified: local-process (direction confirmed; magnitude depends on host cores -- compose caps catalog-db at 1 CPU)
+summary: >
+  catalog and inventory use two logical databases on ONE Postgres instance, a common cost-saving layout. A scheduled
+  merchandising export (join + aggregate over the whole catalogue) now runs back-to-back. It takes CPU from the same instance
+  that serves inventory reservations on the checkout path. Checkout slows and times out; the catalogue service itself looks
+  fine, and inventory's code has not changed.
+why_code_review_and_tests_pass: "Each service is correct in isolation; the contention only exists on the shared instance."
+production_condition: "merch-export loop hitting /export; catalog-db limited to 1 CPU"
+load: { command: "node lab/loadgen.mjs shopflow --concurrency 20 --duration 300 --users 300 --mix browse=20,cart=30,checkout=50" }
+measured_locally: { checkout_p95_baseline_ms: 83, checkout_p95_with_3_export_loops_ms: 147, note: "uncapped multi-core host; expect worse under cpus:1.0" }
+ground_truth:
+  root_cause: catalog-db
+  trigger_client: catalog          # the export endpoint
+  victims: [inventory, orders, api-gateway]
+mapper_signals:
+  - { signal: "catalog-db CPU saturates; inventory and catalog both have OBSERVED edges to it", where: node + edges, strength: strong }
+  - { signal: "catalog -> catalog-db edge activity far above inventory -> catalog-db", where: edge, strength: partial, note: "the only hint of WHICH client is heavy" }
+  - { signal: "merch-export -> catalog edge OBSERVED but not DECLARED (it is the cron job)", where: edge, strength: partial }
+  - { signal: "gateway latency/5xx on /api/checkout only", where: Tier-1 gateway log, strength: strong }
+mapper_blind_spots:
+  - "Cannot attribute database load to a query or a client beyond per-edge connection volume."
+expect:
+  nodes_unhealthy_at_some_point: [catalog-db]
+  incident: { root_cause_any_of: [catalog-db] }
+fix: "move reporting to a replica, give inventory its own instance, rate-limit /export, statement_timeout per role"

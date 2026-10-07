@@ -1,0 +1,5 @@
+# Last sprint notifier started enriching e-mails with product names straight from catalog. The feature
+# shipped behind a flag that is ON in production; nobody touched docker-compose depends_on.
+services:
+  notifier:
+    environment: { NOTIFIER_ENRICH_FROM_CATALOG: "true" }

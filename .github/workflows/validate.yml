@@ -1,0 +1,22 @@
+name: validate
+on: [push, pull_request]
+jobs:
+  static:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - run: npm run install:all
+      - run: npm test            # syntax + every scenario renders and its declared-edge claims match depends_on + monitoring configs
+  api-tests:                     # real containers, real Postgres/Redis/NATS/nginx, every endpoint of every service
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - run: make -C shopflow test
+      - if: failure()
+        run: make -C shopflow logs
+      - if: always()
+        run: make -C shopflow down

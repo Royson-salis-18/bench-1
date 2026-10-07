@@ -1,0 +1,7 @@
+# Rolling deploy: orders v2 (event schema 2) is live, notifier is still v1. The consumer was configured for strict
+# ordering (one message in flight), immediate redelivery, unlimited attempts, and no dead-letter queue.
+services:
+  orders:
+    environment: { ORDER_EVENT_SCHEMA: "2" }
+  notifier:
+    environment: { NOTIFIER_MAX_DELIVER: "-1", NOTIFIER_MAX_ACK_PENDING: "1", NOTIFIER_NAK_DELAY_MS: "0" }
