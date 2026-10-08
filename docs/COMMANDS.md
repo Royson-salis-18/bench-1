@@ -106,6 +106,10 @@ lab/chaos.sh shopflow predict catalog-db
 lab/chaos.sh shopflow run catalog-db pause 40
 lab/chaos.sh shopflow heal
 ```
+Staged organic cascade starting in orders (about 3 minutes, real load):
+```
+cd ~/bench && sudo lab/cascade.sh shopflow orders
+```
 Faults: stop, pause, cpu, net, crash, flap. Full guide and experiments: [CHAOS.md](CHAOS.md).
 
 ## 7. Observability (Grafana / Prometheus / Loki)
