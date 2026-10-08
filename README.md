@@ -4,6 +4,10 @@ ShopFlow is an online-retail system (gateway, catalog, cart, inventory, payments
 
 Everything is containerised (one Dockerfile per service, one compose file) and comes with **Prometheus + Grafana + Loki + Promtail** (a provisioned 25-panel dashboard), an **always-on traffic generator**, and a one-command EC2 setup.
 
+![ShopFlow Grafana dashboard from the running bench](docs/dashboard.png)
+
+*The provisioned Grafana dashboard on the running bench: request rate, 5xx, p95 latency, per-container CPU/memory/network and logs.*
+
 ## Run it on EC2 (one command)
 
 Ubuntu 24.04, **2 GiB RAM or more** (the whole bench is ~0.6 GiB of containers; verified on a c7i-flex.large). Open only SSH and port **8080** in the security group (restrict both to your IP).
