@@ -8,6 +8,8 @@ Everything is containerised (one Dockerfile per service, one compose file) and c
 
 *The provisioned Grafana dashboard on the running bench: request rate, 5xx, p95 latency, per-container CPU/memory/network and logs.*
 
+**Break any service and test cascades / RCA: [docs/CHAOS.md](docs/CHAOS.md)** -- `lab/chaos.sh`.
+
 **All commands used on this bench, with troubleshooting: [docs/COMMANDS.md](docs/COMMANDS.md)**
 
 ## Run it on EC2 (one command)

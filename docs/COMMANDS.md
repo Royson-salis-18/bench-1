@@ -97,6 +97,17 @@ sudo docker run --rm --network shopflow_default shopflow/traffic:dev node loadge
 ```
 Background-traffic tuning (env vars read by compose): `TRAFFIC_MODE=steady|organic`, `TRAFFIC_CONCURRENCY=12`, `TRAFFIC_THINK_MS=1500`.
 
+## 6b. Break any service and watch the cascade
+
+```
+cd ~/bench
+lab/chaos.sh shopflow list
+lab/chaos.sh shopflow predict catalog-db
+lab/chaos.sh shopflow run catalog-db pause 40
+lab/chaos.sh shopflow heal
+```
+Faults: stop, pause, cpu, net, crash, flap. Full guide and experiments: [CHAOS.md](CHAOS.md).
+
 ## 7. Observability (Grafana / Prometheus / Loki)
 
 All monitoring listens on `127.0.0.1` of the instance only. From your laptop open a tunnel (leave it running):
