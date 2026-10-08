@@ -19,7 +19,7 @@ services:
     environment:
       GATEWAY_READ_TIMEOUT: ${GATEWAY_READ_TIMEOUT:-10s}
       NGINX_ENVSUBST_OUTPUT_DIR: /etc/nginx
-    volumes: ["./nginx/nginx.conf.template:/etc/nginx/templates/nginx.conf.template:ro"]
+    volumes: ["./nginx/nginx.conf.template:/etc/nginx/templates/nginx.conf.template:ro", "./storefront:/usr/share/nginx/html:ro"]
     depends_on: [catalog, cart, orders]
     mem_limit: 128m
     <<: *logging
@@ -185,7 +185,7 @@ services:
     image: shopflow/traffic:dev
     build: { context: ., dockerfile: loadgen/Dockerfile }
     restart: always
-    environment: { BASE_URL: "http://api-gateway:8080", CONCURRENCY: "${TRAFFIC_CONCURRENCY:-4}", THINK_MS: "${TRAFFIC_THINK_MS:-300}", USERS: "100" }
+    environment: { BASE_URL: "http://api-gateway:8080", CONCURRENCY: "${TRAFFIC_CONCURRENCY:-12}", THINK_MS: "${TRAFFIC_THINK_MS:-1500}", USERS: "300", MODE: "${TRAFFIC_MODE:-organic}" }
     depends_on: [api-gateway]
     mem_limit: 96m
 

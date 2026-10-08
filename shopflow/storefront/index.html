@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ShopFlow</title>
+<style>
+  :root { --bg:#f6f7f9; --card:#fff; --ink:#1b1f24; --muted:#667085; --line:#e4e7ec; --brand:#2f5bea; --brand-d:#2347c4; --ok:#12a150; --warn:#d97706; --bad:#d92d20; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#0f1115; --card:#181b21; --ink:#eceff4; --muted:#9aa4b2; --line:#2a2f38; --brand:#6d8cff; --brand-d:#8aa2ff; } }
+  * { box-sizing: border-box; }
+  body { margin:0; font:15px/1.45 system-ui,-apple-system,Segoe UI,Roboto,sans-serif; background:var(--bg); color:var(--ink); padding-bottom:210px; }
+  header { position:sticky; top:0; z-index:5; background:var(--card); border-bottom:1px solid var(--line); }
+  .bar { max-width:1100px; margin:0 auto; padding:10px 16px; display:flex; align-items:center; gap:14px; flex-wrap:wrap; }
+  .logo { font-weight:800; font-size:20px; letter-spacing:-.02em; } .logo span { color:var(--brand); }
+  .spacer { flex:1; }
+  .chip { display:flex; align-items:center; gap:6px; font-size:13px; color:var(--muted); }
+  .chip input { font:inherit; padding:5px 8px; border:1px solid var(--line); border-radius:8px; width:150px; background:var(--bg); color:var(--ink); }
+  button { font:inherit; cursor:pointer; border:1px solid var(--line); background:var(--card); color:var(--ink); padding:7px 12px; border-radius:10px; }
+  button:hover { border-color:var(--brand); } button.primary { background:var(--brand); color:#fff; border-color:var(--brand); } button.primary:hover { background:var(--brand-d); }
+  button:disabled { opacity:.5; cursor:not-allowed; }
+  nav { max-width:1100px; margin:0 auto; padding:0 16px 10px; display:flex; gap:8px; flex-wrap:wrap; }
+  nav button.on { background:var(--brand); color:#fff; border-color:var(--brand); }
+  main { max-width:1100px; margin:18px auto; padding:0 16px; }
+  h2 { margin:6px 0 14px; font-size:18px; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(200px,1fr)); gap:14px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:14px; overflow:hidden; display:flex; flex-direction:column; }
+  .card .img { height:110px; display:flex; align-items:center; justify-content:center; font-size:42px; cursor:pointer; }
+  .card .body { padding:12px; display:flex; flex-direction:column; gap:4px; flex:1; }
+  .card .name { font-weight:600; cursor:pointer; } .card .cat { color:var(--muted); font-size:12px; text-transform:capitalize; }
+  .card .row { display:flex; justify-content:space-between; align-items:center; margin-top:auto; padding-top:8px; }
+  .price { font-weight:700; }
+  .panel { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:16px; }
+  table { width:100%; border-collapse:collapse; } th,td { text-align:left; padding:8px 6px; border-bottom:1px solid var(--line); font-size:14px; } th { color:var(--muted); font-weight:600; font-size:12px; text-transform:uppercase; }
+  .badge { display:inline-block; padding:2px 8px; border-radius:99px; font-size:12px; font-weight:600; background:var(--line); }
+  .b-paid,.b-DELIVERED { background:#d1fadf; color:#05603a; } .b-CANCELLED { background:#fee4e2; color:#912018; }
+  .overlay { position:fixed; inset:0; background:rgba(0,0,0,.45); display:none; align-items:center; justify-content:center; z-index:20; padding:16px; }
+  .overlay.show { display:flex; } .modal { background:var(--card); border-radius:16px; padding:20px; max-width:520px; width:100%; max-height:85vh; overflow:auto; }
+  .modal h3 { margin:0 0 6px; } .muted { color:var(--muted); } .right { text-align:right; }
+  .notice { padding:10px 12px; border-radius:10px; margin:10px 0; font-size:14px; } .n-ok { background:#d1fadf; color:#05603a; } .n-bad { background:#fee4e2; color:#912018; } .n-warn { background:#fef0c7; color:#93370d; }
+  #log { position:fixed; left:0; right:0; bottom:0; background:#0d1117; color:#c9d1d9; font:12px/1.5 ui-monospace,Menlo,Consolas,monospace; padding:8px 14px; height:190px; overflow:auto; border-top:2px solid var(--brand); z-index:6; }
+  #log .t { color:#6e7681; } #log .s2 { color:#3fb950; } #log .s4 { color:#d29922; } #log .s5 { color:#f85149; font-weight:700; }
+  #logbar { position:fixed; left:0; right:0; bottom:190px; background:#161b22; color:#8b949e; font-size:12px; padding:3px 14px; z-index:6; display:flex; gap:14px; align-items:center; }
+  .pill { padding:1px 8px; border-radius:99px; background:#21262d; } label.sw { display:flex; gap:6px; align-items:center; color:#c9d1d9; cursor:pointer; }
+</style>
+</head>
+<body>
+<header>
+  <div class="bar">
+    <div class="logo">Shop<span>Flow</span></div>
+    <div class="spacer"></div>
+    <div class="chip">Shopping as <input id="uid" aria-label="user id" spellcheck="false"></div>
+    <button id="btnOrders">My orders</button>
+    <button id="btnCart" class="primary">Cart (<span id="cartN">0</span>)</button>
+  </div>
+  <nav id="cats"></nav>
+</header>
+
+<main>
+  <section id="viewShop"><h2 id="shopTitle">All products</h2><div id="grid" class="grid"></div></section>
+  <section id="viewOrders" hidden><h2>My orders</h2><div class="panel"><table><thead><tr><th>Order</th><th>Status</th><th class="right">Total</th><th>Placed</th></tr></thead><tbody id="ordersBody"></tbody></table><p id="ordersEmpty" class="muted" hidden>No orders yet &mdash; add something to your cart and check out.</p></div></section>
+</main>
+
+<div id="ovProduct" class="overlay"><div class="modal" id="modProduct"></div></div>
+<div id="ovCart" class="overlay"><div class="modal" id="modCart"></div></div>
+<div id="ovOrder" class="overlay"><div class="modal" id="modOrder"></div></div>
+
+<div id="logbar"><strong>Live requests</strong><span class="pill" id="stats">0 requests</span>
+  <label class="sw"><input type="checkbox" id="auto"> Autopilot (browse like a visitor)</label>
+  <select id="speed" aria-label="autopilot speed"><option value="1">human pace</option><option value="0.4">brisk</option><option value="0.15">busy</option></select>
+  <span class="spacer"></span><span>every click you make here is real traffic through the gateway</span></div>
+<div id="log" role="log" aria-live="off"></div>
+
+<script>
+'use strict';
+const $ = (id) => document.getElementById(id);
+const CATS = ['shirts', 'shoes', 'hats', 'bags', 'socks', 'jackets'];
+const ICON = { shirts: '\u{1F455}', shoes: '\u{1F45F}', hats: '\u{1F9E2}', bags: '\u{1F45C}', socks: '\u{1F9E6}', jackets: '\u{1F9E5}' };
+const TINT = { shirts: '#dbeafe', shoes: '#fce7f3', hats: '#fef3c7', bags: '#dcfce7', socks: '#ede9fe', jackets: '#ffedd5' };
+const money = (c) => '$' + (c / 100).toFixed(2);
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+let user = localStorage.getItem('shopflow.user') || ('guest-' + Math.random().toString(36).slice(2, 8));
+let category = 'all', products = [], nReq = 0;
+$('uid').value = user;
+$('uid').addEventListener('change', () => { user = ($('uid').value.trim() || user).replace(/[^\w.@-]/g, ''); $('uid').value = user; localStorage.setItem('shopflow.user', user); refreshCart(); });
+localStorage.setItem('shopflow.user', user);
+
+// ---- every call goes through here, so the live log shows exactly what the shop is doing (status codes included)
+async function api(method, path, body) {
+  const t0 = performance.now(); let status = 0, data = null;
+  try {
+    const res = await fetch(path, { method, headers: body ? { 'content-type': 'application/json' } : undefined, body: body ? JSON.stringify(body) : undefined });
+    status = res.status; const txt = await res.text(); try { data = txt ? JSON.parse(txt) : null; } catch { data = txt; }
+  } catch (e) { status = 0; data = { error: String(e) }; }
+  const ms = Math.round(performance.now() - t0); nReq++;
+  const row = document.createElement('div'); const cls = status === 0 || status >= 500 ? 's5' : status >= 400 ? 's4' : 's2';
+  row.innerHTML = `<span class="t">${new Date().toLocaleTimeString()}</span> <span class="${cls}">${status || 'ERR'}</span> ${method.padEnd(6)} ${esc(path)} <span class="t">${ms} ms</span>`;
+  const log = $('log'); log.prepend(row); while (log.children.length > 120) log.lastChild.remove();
+  $('stats').textContent = nReq + ' requests'; return { status, data, ms };
+}
+
+// ---- catalog
+function renderCats() {
+  $('cats').innerHTML = ['all', ...CATS].map((c) => `<button data-c="${c}" class="${c === category ? 'on' : ''}">${c === 'all' ? 'All' : c[0].toUpperCase() + c.slice(1)}</button>`).join('');
+  $('cats').querySelectorAll('button').forEach((b) => b.onclick = () => { category = b.dataset.c; showView('shop'); loadProducts(); });
+}
+async function loadProducts() {
+  renderCats(); $('shopTitle').textContent = category === 'all' ? 'All products' : category[0].toUpperCase() + category.slice(1);
+  $('grid').innerHTML = '<p class="muted">Loading&hellip;</p>';
+  const q = category === 'all' ? '?limit=40' : `?category=${category}&limit=40`;
+  const r = await api('GET', '/api/catalog/products' + q);
+  if (r.status !== 200) { $('grid').innerHTML = `<div class="notice n-bad">Could not load products (HTTP ${r.status || 'network error'}).</div>`; return; }
+  products = r.data.items;
+  $('grid').innerHTML = products.map((p) => `<div class="card"><div class="img" data-id="${p.id}" style="background:${TINT[p.category] || '#eee'}">${ICON[p.category] || '\u{1F6CD}'}</div>
+    <div class="body"><div class="name" data-id="${p.id}">${esc(p.name)}</div><div class="cat">${esc(p.category)} &middot; ${esc(p.sku)}</div>
+    <div class="row"><span class="price">${money(p.price_cents)}</span><button data-add="${p.id}">Add</button></div></div></div>`).join('');
+  $('grid').querySelectorAll('[data-add]').forEach((b) => b.onclick = () => addToCart(Number(b.dataset.add), b));
+  $('grid').querySelectorAll('[data-id]').forEach((e) => e.onclick = () => openProduct(Number(e.dataset.id)));
+}
+async function openProduct(id) {
+  const r = await api('GET', `/api/catalog/products/${id}`);
+  const p = r.data;
+  $('modProduct').innerHTML = r.status !== 200 ? `<h3>Product</h3><div class="notice n-bad">HTTP ${r.status}</div><button onclick="closeAll()">Close</button>` :
+    `<h3>${esc(p.name)}</h3><div class="muted">${esc(p.category)} &middot; ${esc(p.sku)}</div><p>${esc(p.description)}</p><p class="price" style="font-size:20px">${money(p.price_cents)}</p>
+     <button class="primary" id="mAdd">Add to cart</button> <button onclick="closeAll()">Close</button>`;
+  if (r.status === 200) $('mAdd').onclick = async () => { await addToCart(id); closeAll(); };
+  $('ovProduct').classList.add('show');
+}
+
+// ---- cart / checkout
+async function addToCart(id, btn) {
+  const p = products.find((x) => x.id === id);
+  if (btn) { btn.disabled = true; setTimeout(() => (btn.disabled = false), 400); }
+  const r = await api('POST', `/api/cart/${encodeURIComponent(user)}/items`, { productId: id, qty: 1, priceCents: p ? p.price_cents : 1000 });
+  if (r.status >= 400 || r.status === 0) toast(`Could not add to cart (HTTP ${r.status || 'network error'})`, 'bad');
+  await refreshCart(); return r;
+}
+let cart = { items: [], totalCents: 0 };
+async function refreshCart() {
+  const r = await api('GET', `/api/cart/${encodeURIComponent(user)}`);
+  if (r.status === 200) cart = r.data; $('cartN').textContent = cart.items.reduce((s, i) => s + i.qty, 0);
+}
+function nameOf(pid) { const p = products.find((x) => x.id === pid); return p ? p.name : 'Product ' + pid; }
+async function openCart(msg) {
+  await refreshCart();
+  const rows = cart.items.map((i) => `<tr><td>${esc(nameOf(i.productId))}</td><td>&times;${i.qty}</td><td class="right">${money(i.priceCents * i.qty)}</td></tr>`).join('');
+  $('modCart').innerHTML = `<h3>Your cart</h3>${msg || ''}${cart.items.length ? `<table><tbody>${rows}</tbody></table><p class="right"><strong>Total ${money(cart.totalCents)}</strong></p>
+     <button class="primary" id="doCheckout">Check out</button> <button id="doClear">Clear cart</button> <button onclick="closeAll()">Keep shopping</button>` :
+     `<p class="muted">Your cart is empty.</p><button onclick="closeAll()">Keep shopping</button>`}`;
+  if (cart.items.length) { $('doCheckout').onclick = checkout; $('doClear').onclick = async () => { await api('DELETE', `/api/cart/${encodeURIComponent(user)}`); await openCart(); }; }
+  $('ovCart').classList.add('show');
+}
+const FRIENDLY = { 402: 'Your card was declined.', 409: 'One of the items is out of stock (or the cart is empty).', 502: 'We could not complete the payment or reserve stock right now. Please try again.', 504: 'The shop took too long to answer.', 0: 'Could not reach the shop.' };
+async function checkout() {
+  $('doCheckout').disabled = true;
+  const r = await api('POST', '/api/checkout', { userId: user, email: user + '@example.test' });
+  if (r.status === 201) { await refreshCart(); $('modCart').innerHTML = `<h3>Thank you!</h3><div class="notice n-ok">Order placed &mdash; ${money(r.data.totalCents)}</div><p class="muted">Order id ${esc(r.data.orderId)}. A confirmation e-mail is sent in the background.</p><button class="primary" onclick="closeAll();showView('orders')">View my orders</button>`; }
+  else openCart(`<div class="notice n-bad">${esc(FRIENDLY[r.status] || 'Something went wrong.')} <span class="muted">(HTTP ${r.status || 'network error'})</span></div>`);
+}
+
+// ---- orders
+async function loadOrders() {
+  const r = await api('GET', `/api/orders?userId=${encodeURIComponent(user)}`);
+  const list = r.status === 200 ? r.data.orders : [];
+  $('ordersEmpty').hidden = list.length > 0 || r.status !== 200;
+  $('ordersBody').innerHTML = r.status !== 200 ? `<tr><td colspan="4"><div class="notice n-bad">Could not load orders (HTTP ${r.status || 'network error'}).</div></td></tr>` :
+    list.map((o) => `<tr style="cursor:pointer" data-o="${o.id}"><td>${esc(o.id.slice(0, 8))}&hellip;</td><td><span class="badge b-${esc(o.status)}">${esc(o.status)}</span></td><td class="right">${money(o.total_cents)}</td><td class="muted">${new Date(o.created_at).toLocaleString()}</td></tr>`).join('');
+  $('ordersBody').querySelectorAll('[data-o]').forEach((tr) => tr.onclick = () => openOrder(tr.dataset.o));
+}
+async function openOrder(id) {
+  const r = await api('GET', `/api/orders/${id}`); const o = r.data;
+  $('modOrder').innerHTML = r.status !== 200 ? `<h3>Order</h3><div class="notice n-bad">HTTP ${r.status}</div><button onclick="closeAll()">Close</button>` :
+    `<h3>Order ${esc(o.id.slice(0, 8))}</h3><p><span class="badge b-${esc(o.status)}">${esc(o.status)}</span> &middot; ${money(o.total_cents)}</p>
+     <table><tbody>${(o.items || []).map((i) => `<tr><td>${esc(nameOf(i.productId))}</td><td>&times;${i.qty}</td><td class="right">${money(i.priceCents * i.qty)}</td></tr>`).join('')}</tbody></table><p class="muted">${esc(o.email)}</p><button onclick="closeAll()">Close</button>`;
+  $('ovOrder').classList.add('show');
+}
+
+// ---- plumbing
+function showView(v) { $('viewShop').hidden = v !== 'shop'; $('viewOrders').hidden = v !== 'orders'; if (v === 'orders') loadOrders(); }
+function closeAll() { document.querySelectorAll('.overlay').forEach((o) => o.classList.remove('show')); }
+function toast(t, k) { const d = document.createElement('div'); d.className = 'notice n-' + (k || 'warn'); d.textContent = t; d.style.cssText = 'position:fixed;top:70px;right:16px;z-index:30;max-width:320px'; document.body.append(d); setTimeout(() => d.remove(), 3500); }
+document.querySelectorAll('.overlay').forEach((o) => o.addEventListener('click', (e) => { if (e.target === o) closeAll(); }));
+$('btnCart').onclick = () => openCart(); $('btnOrders').onclick = () => showView('orders');
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeAll(); });
+
+// ---- autopilot: this tab behaves like a human visitor (variable pauses, popular products viewed more, most people don't buy)
+const rnd = (n) => Math.floor(Math.random() * n);
+const think = (speed) => new Promise((r) => setTimeout(r, Math.min(15000, Math.exp(Math.log(2500) + 0.7 * gauss())) * speed));
+function gauss() { let u = 0, v = 0; while (!u) u = Math.random(); while (!v) v = Math.random(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); }
+function popular(n) { return Math.min(n - 1, Math.floor(Math.pow(Math.random(), 2.2) * n)); }
+let autoRun = false;
+async function autopilot() {
+  while (autoRun) {
+    const speed = Number($('speed').value), step = Math.random();
+    try {
+      if (step < 0.28) { category = ['all', ...CATS][rnd(CATS.length + 1)]; showView('shop'); await loadProducts(); }
+      else if (step < 0.6 && products.length) { await openProduct(products[popular(products.length)].id); await think(speed * 0.6); closeAll(); }
+      else if (step < 0.8 && products.length) { await addToCart(products[popular(products.length)].id); }
+      else if (step < 0.9 && cart.items.length) { await openCart(); await think(speed * 0.5); if (Math.random() < 0.5) await checkout(); else closeAll(); }
+      else if (step < 0.96) { showView('orders'); await think(speed * 0.4); showView('shop'); }
+    } catch (e) { /* keep going */ }
+    await think(speed);
+  }
+}
+$('auto').onchange = () => { autoRun = $('auto').checked; if (autoRun) autopilot(); };
+
+showView('shop'); loadProducts(); refreshCart();
+</script>
+</body>
+</html>

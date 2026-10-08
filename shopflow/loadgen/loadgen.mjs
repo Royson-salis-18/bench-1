@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Closed-loop load generator for shopflow (self-contained; journeys are in ./journeys.js).
-//   node loadgen/loadgen.mjs [--continuous]  --base http://localhost:8080 --concurrency 20 --duration 60 --users 200 [--mix browse=60,cart=25,checkout=15]
+//   node loadgen/loadgen.mjs [--continuous]  --base http://localhost:8080 --concurrency 20 --duration 60 --users 200 [--mix browse=60,cart=25,checkout=15] [--organic [--wave-min 30]]
 // Prints a stats line every 5s and a JSON summary at the end (stdout), so scenarios can assert on it.
 import { pathToFileURL } from 'node:url';
 import path from 'node:path';
@@ -15,7 +15,8 @@ process.on('SIGTERM', () => process.exit(0));
 const users = Number(opt('users', 100));
 const thinkMs = Number(opt('think-ms', 50));
 const mixArg = opt('mix', '');
-const { journeys } = await import(pathToFileURL(path.resolve(import.meta.dirname, 'journeys.js')).href);
+const organic = args.includes('--organic');   // visitor sessions with think times + a day/night wave in active visitors
+const { journeys, session } = await import(pathToFileURL(path.resolve(import.meta.dirname, 'journeys.js')).href);
 const weights = Object.fromEntries(mixArg.split(',').filter(Boolean).map((p) => p.split('=')).map(([k, v]) => [k, Number(v)]));
 const pool = journeys.map((j) => ({ ...j, weight: weights[j.name] ?? j.weight }));
 const total = pool.reduce((s, j) => s + j.weight, 0);
@@ -41,11 +42,21 @@ const line = (recs, label) => {
 };
 const end = Date.now() + duration * 1000;
 const ticker = setInterval(() => { console.error(line(stats.window.splice(0), new Date().toISOString().slice(11, 19))); }, 5000);
-await Promise.all(Array.from({ length: concurrency }, async () => {
+const period = Number(opt('wave-min', 30)) * 60000;   // one "day" of the wave
+await Promise.all(Array.from({ length: concurrency }, async (_, w) => {
   while (Date.now() < end) {
+    const ctx = { http, user: () => `u${Math.floor(Math.pow(Math.random(), 1.5) * users)}`, rand: (n) => Math.floor(Math.random() * n), thinkMs: Number(opt('think-ms', 1500)) };
+    if (organic) {
+      // worker w is awake only while the wave is above its share, so active visitors rise and fall over the "day"
+      const level = 0.55 + 0.45 * Math.sin((2 * Math.PI * Date.now()) / period);
+      if (w / concurrency > level) { await new Promise((r) => setTimeout(r, 2000)); continue; }
+      try { await session(ctx); } catch { /* aborted */ }
+      await new Promise((r) => setTimeout(r, 500 + Math.random() * 3000));
+      continue;
+    }
     let r = Math.random() * total, j = pool[0];
     for (const x of pool) { if ((r -= x.weight) < 0) { j = x; break; } }
-    const ctx = { http, user: () => `u${Math.floor(Math.random() * users)}`, rand: (n) => Math.floor(Math.random() * n) };
+    ctx.user = () => `u${Math.floor(Math.random() * users)}`;
     try { await j.run(ctx); } catch { /* journey aborted by a failed step */ }
     await new Promise((r) => setTimeout(r, thinkMs));
   }

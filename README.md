@@ -19,7 +19,9 @@ curl -fsSL https://raw.githubusercontent.com/Royson-salis-18/bench-1/main/bootst
 
 It installs Docker, clones this repo, and runs `make bench` (app + traffic + monitoring). Log out and back in once so the `docker` group applies.
 
-* App gateway: `http://<instance-ip>:8080`
+* **Storefront (use it like a customer): `http://<instance-ip>:8080/`** -- browse, add to cart, check out, see orders; a live request log at the bottom shows each call through the gateway, and an *Autopilot* checkbox browses for you. Everything you click is real traffic.
+* API: `http://<instance-ip>:8080/api/...`
+* Background traffic is *organic* by default: visitor sessions with think times, popular products, returning users and a day/night wave (~12 workers). `TRAFFIC_MODE=steady` gives the old flat load; `TRAFFIC_CONCURRENCY` scales it.
 * Grafana / Prometheus listen on localhost only: `ssh -L 3000:localhost:3000 -L 9090:localhost:9090 ubuntu@<ip>` then <http://localhost:3000> (admin / `bench`), dashboard "ShopFlow test bench"
 * Point a mapper at it: Target ID `shopflow`, the instance IP, SSH user `ubuntu`, your key. The compose file it should read is `~/bench/shopflow/.rendered/docker-compose.yml` (one merged file, so declared dependencies are discovered).
 

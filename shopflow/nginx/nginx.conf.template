@@ -25,6 +25,9 @@ http {
     listen 8080;
     location = /healthz { return 200 'ok'; }
 
+    # The storefront: a static single-page shop UI so people can use ShopFlow like real customers (organic traffic).
+    location / { root /usr/share/nginx/html; index index.html; try_files $uri $uri/ /index.html; }
+
     location /api/catalog/ { set $up http://catalog:3001;  rewrite ^/api/catalog/(.*)$ /$1 break; proxy_pass $up; }
     location /api/cart/    { set $up http://cart:3002;     rewrite ^/api/cart/(.*)$ /carts/$1 break;  proxy_pass $up; }
     location /api/orders   { set $up http://orders:3005;   rewrite ^/api/orders(.*)$ /orders$1 break; proxy_pass $up; }
