@@ -4,6 +4,7 @@
 #   make load               generate traffic (20 concurrent users, 60 s)
 #   make scenario SCEN=sf-01-missing-index     start with one production condition applied
 #   make bench              app + always-on traffic + observability (Grafana :3000, Prometheus :9090, Loki, docker-exporter; localhost only)
+#   make traffic-off | traffic-on   stop/start the always-on traffic generator (to drive the shop by hand)
 #   make obs-up | obs-down  observability only (app must be running)
 #   make urls               where to look
 #   make down               stop and delete volumes (databases re-seed on next start)
@@ -75,6 +76,15 @@ obs-up:
 obs-down:
 	-docker compose -f docker-compose.obs.yml down -v --remove-orphans
 
+# Stop / start the always-on traffic generator (e.g. to drive the shop by hand from the storefront and watch the mapper react).
+# `restart: always` does not bring a container you stopped yourself back, but `make scenario` / `make bench` start it again -- run traffic-off after them.
+traffic-off:
+	docker stop shopflow-traffic-1
+	@echo "traffic generator stopped: the gateway is quiet. Use http://<host>:8080/ by hand, or  make traffic-on"
+
+traffic-on:
+	docker start shopflow-traffic-1 || COMPOSE_PROFILES=traffic docker compose -f $(RENDERED) up -d traffic
+
 bench:
 	$(MAKE) up PROFILES=traffic
 	$(MAKE) obs-up
@@ -84,4 +94,4 @@ urls:
 	@echo "Grafana     : http://localhost:3000  (dashboard: shopflow test bench)    Prometheus: http://localhost:9090"
 	@echo "from your laptop: ssh -L 3000:localhost:3000 -L 9090:localhost:9090 <user>@<ec2-host>"
 
-.PHONY: render up scenario wait test load ps logs down scenarios obs-up obs-down bench urls
+.PHONY: traffic-off traffic-on render up scenario wait test load ps logs down scenarios obs-up obs-down bench urls
