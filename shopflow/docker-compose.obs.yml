@@ -55,6 +55,21 @@ services:
     depends_on: [prometheus, loki]
     mem_limit: 192m
 
+  grafana-viewer:                # someone "watching the dashboard": queries Grafana (-> Prometheus, -> Loki) every few seconds, so those links are live and visible to a mapper
+    image: node:22-alpine
+    restart: always
+    entrypoint: ["node", "-e"]
+    command:
+      - |
+        const g = 'http://grafana:3000/api/datasources/proxy/uid', e = encodeURIComponent;
+        const q = [g + '/prom/api/v1/query?query=' + e('sum(rate(http_server_request_duration_seconds_count[1m]))'),
+                   g + '/prom/api/v1/query?query=up',
+                   g + '/loki/loki/api/v1/query_range?limit=20&query=' + e('{service=~".+"}')];
+        setInterval(() => q.forEach((u) => fetch(u).catch(() => {})), 5000);
+    networks: [default]
+    depends_on: [grafana]
+    mem_limit: 64m
+
 networks:
   app: { external: true, name: shopflow_default }
 
