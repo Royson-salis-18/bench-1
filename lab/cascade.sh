@@ -41,7 +41,7 @@ pending() { curl -s -m 3 'localhost:9090/api/v1/query?query=sum(queue_pending_me
 fmt() { awk -v c="$1" -v t="$2" 'BEGIN{ms=t*1000; printf "%s/%dms", c, ms}'; }
 
 echo "waiting for the notifier backlog to drain (clean start)..."; for _ in $(seq 40); do b=$(pending); [ "$b" = 0 ] || [ "$b" = "?" ] && break; sleep 3; done
-declare -A FIRST PEAKMS; PEND_PEAK=0; PHASE=baseline; T0=$(date +%s); BASEPEND=$(pending)
+declare -A FIRST PEAKMS; PEND_PEAK=0; PHASE=baseline; BASEMAX=0; T0=$(date +%s); BASEPEND=$(pending)
 printf '%-5s %-9s %-17s %-17s %-17s %-17s %s\n' t phase catalog cart orders-list checkout "notifier-backlog"
 while :; do
   t=$(( $(date +%s) - T0 )); [ "$t" -ge "$TOTAL" ] && break
@@ -51,11 +51,13 @@ while :; do
   row=""; for p in "catalog|GET|/api/catalog/products?limit=1|" "cart|GET|/api/cart/cascade-probe|" "orders|GET|/api/orders?userId=cascade-probe|" "checkout|POST|/api/checkout|{\"userId\":\"cascade-probe\",\"email\":\"p@example.test\"}"; do
     IFS='|' read -r n m path body <<<"$p"; read -r code sec <<<"$(probe "$n" "$m" "$path" "$body")"; ms=$(awk -v t="$sec" 'BEGIN{printf "%d", t*1000}')
     bad=0; case "$code" in 000|5*) bad=1;; esac; [ "$ms" -gt 1000 ] && bad=1
-    [ "$bad" = 1 ] && [ -z "${FIRST[$n]:-}" ] && FIRST[$n]=$t
+    [ "$bad" = 1 ] && [ $PHASE != baseline ] && [ -z "${FIRST[$n]:-}" ] && FIRST[$n]=$t
     [ "${PEAKMS[$n]:-0}" -lt "$ms" ] && PEAKMS[$n]=$ms
     row+=$(printf '%-18s' "$code/${ms}ms"); done
   pend=$(pending); [[ "$pend" =~ ^[0-9]+$ ]] && [ "$pend" -gt "$PEND_PEAK" ] && PEND_PEAK=$pend
-  [ "$pend" != "?" ] && [ "$pend" -gt "$BASEPEND" ] 2>/dev/null && [ -z "${FIRST[notifier]:-}" ] && FIRST[notifier]=$t
+  if [[ "$pend" =~ ^[0-9]+$ ]]; then
+    if [ $PHASE = baseline ]; then [ "$pend" -gt "$BASEMAX" ] && BASEMAX=$pend
+    elif [ "$pend" -gt $((BASEMAX+10)) ] && [ -z "${FIRST[notifier]:-}" ]; then FIRST[notifier]=$t; fi; fi
   printf '%-5s %-9s %s %s\n' "${t}s" "$PHASE" "$row" "$pend"
   sleep 1
 done
