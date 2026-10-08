@@ -8,6 +8,8 @@ Everything is containerised (one Dockerfile per service, one compose file) and c
 
 *The provisioned Grafana dashboard on the running bench: request rate, 5xx, p95 latency, per-container CPU/memory/network and logs.*
 
+**All commands used on this bench, with troubleshooting: [docs/COMMANDS.md](docs/COMMANDS.md)**
+
 ## Run it on EC2 (one command)
 
 Ubuntu 24.04, **2 GiB RAM or more** (the whole bench is ~0.6 GiB of containers; verified on a c7i-flex.large). Open only SSH and port **8080** in the security group (restrict both to your IP).
