@@ -1,0 +1,104 @@
+{
+  "subject": "shopflow",
+  "project": "shopflow",
+  "network": "shopflow_default",
+  "entry": "api-gateway",
+  "services": {
+    "api-gateway": {
+      "role": "gateway",
+      "hazard": 0.6,
+      "deps": [
+        "catalog",
+        "cart",
+        "orders"
+      ]
+    },
+    "catalog": {
+      "role": "service",
+      "hazard": 1.0,
+      "deps": [
+        "catalog-db",
+        "catalog-cache"
+      ]
+    },
+    "catalog-db": {
+      "role": "database",
+      "hazard": 0.8,
+      "deps": []
+    },
+    "catalog-cache": {
+      "role": "store",
+      "hazard": 1.0,
+      "deps": []
+    },
+    "cart": {
+      "role": "service",
+      "hazard": 1.0,
+      "deps": [
+        "cart-store",
+        "catalog"
+      ]
+    },
+    "cart-store": {
+      "role": "store",
+      "hazard": 0.8,
+      "deps": []
+    },
+    "inventory": {
+      "role": "service",
+      "hazard": 1.0,
+      "deps": [
+        "catalog-db"
+      ]
+    },
+    "payments": {
+      "role": "service",
+      "hazard": 1.2,
+      "deps": [
+        "psp-sandbox"
+      ]
+    },
+    "psp-sandbox": {
+      "role": "external",
+      "hazard": 1.5,
+      "deps": []
+    },
+    "orders": {
+      "role": "service",
+      "hazard": 1.2,
+      "deps": [
+        "orders-db",
+        "event-bus",
+        "cart",
+        "inventory",
+        "payments"
+      ]
+    },
+    "orders-db": {
+      "role": "database",
+      "hazard": 0.8,
+      "deps": []
+    },
+    "event-bus": {
+      "role": "queue",
+      "hazard": 0.8,
+      "deps": []
+    },
+    "notifier": {
+      "role": "service",
+      "hazard": 1.0,
+      "deps": [
+        "event-bus",
+        "orders"
+      ]
+    },
+    "traffic": {
+      "role": "service",
+      "protected": true,
+      "deps": [
+        "api-gateway"
+      ]
+    }
+  },
+  "compose": "shopflow/.rendered/docker-compose.yml"
+}

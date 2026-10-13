@@ -185,7 +185,7 @@ services:
     image: shopflow/traffic:dev
     build: { context: ., dockerfile: loadgen/Dockerfile }
     restart: always
-    environment: { BASE_URL: "http://api-gateway:8080", CONCURRENCY: "${TRAFFIC_CONCURRENCY:-12}", THINK_MS: "${TRAFFIC_THINK_MS:-1500}", USERS: "300", MODE: "${TRAFFIC_MODE:-organic}" }
+    environment: { BASE_URL: "http://api-gateway:8080", CONCURRENCY: "${TRAFFIC_CONCURRENCY:-12}", THINK_MS: "${TRAFFIC_THINK_MS:-1500}", USERS: "300", MODE: "${TRAFFIC_MODE:-organic}", BASE_RPS: "${TRAFFIC_BASE_RPS:-0.6}", SEED: "${TRAFFIC_SEED:-}" }
     depends_on: [api-gateway]
     mem_limit: 96m
 

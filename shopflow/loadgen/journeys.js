@@ -18,36 +18,45 @@ export const journeys = [
   } },
 ];
 
-// Organic visitor session: a funnel with human think times, popular products (Zipf-like) and returning users.
-// Used by `loadgen.mjs --organic`; each worker runs whole sessions instead of isolated journeys.
+// Organic visitor sessions as a Markov chain (see traffic-model.mjs): where a visitor goes next depends only on where they are.
+// Roughly: most visits browse and leave, some look at a product, a few add to a cart, fewer still check out.
+import { zipf } from './traffic-model.mjs';
 const CATS = ['shoes', 'shirts', 'hats', 'bags', 'socks', 'jackets'];
-const popular = (c, n = 5000) => Math.min(n, 1 + Math.floor(Math.pow(Math.random(), 3) * n));
-const think = (c) => new Promise((r) => setTimeout(r, Math.min(20000, Math.exp(Math.log(c.thinkMs ?? 1500) + 0.8 * (Math.random() + Math.random() + Math.random() - 1.5)))));
-export async function session(c) {
-  const u = c.user();
-  const prices = new Map();
-  const seen = [];
-  const pages = 1 + c.rand(4);
-  for (let p = 0; p < pages; p++) {
-    const r = await c.http('GET', `/api/catalog/products?category=${CATS[c.rand(CATS.length)]}&limit=40`);
-    await think(c);
-    const list = Array.isArray(r.data?.items) ? r.data.items : Array.isArray(r.data?.products) ? r.data.products : Array.isArray(r.data) ? r.data : [];
-    const looks = 1 + c.rand(3);
-    for (let i = 0; i < looks; i++) {
-      const pick = list.length ? list[Math.min(list.length - 1, Math.floor(Math.pow(Math.random(), 2) * list.length))] : { id: popular(c), price_cents: 1000 };
-      const d = await c.http('GET', `/api/catalog/products/${pick.id}`);
-      seen.push({ id: pick.id, price: d.data?.price_cents ?? pick.price_cents ?? 1000 });
-      await think(c);
-    }
-  }
-  if (Math.random() < 0.35 && seen.length) {
-    for (const s of seen.slice(0, 1 + c.rand(3))) { await c.http('POST', `/api/cart/${u}/items`, { productId: s.id, qty: 1, priceCents: s.price }); await think(c); }
-    await c.http('GET', `/api/cart/${u}`);
-    await think(c);
-    if (Math.random() < 0.4) {
-      await c.http('POST', '/api/checkout', { userId: u, email: `${u}@example.test` });
-      await think(c);
-      await c.http('GET', `/api/orders?userId=${u}`);
-    }
-  } else if (Math.random() < 0.1) await c.http('GET', `/api/orders?userId=${u}`);
-}
+const popular = zipf(5000, 1.1);
+const listOf = (r) => (Array.isArray(r.data?.items) ? r.data.items : Array.isArray(r.data?.products) ? r.data.products : Array.isArray(r.data) ? r.data : []);
+
+export const chain = {
+  start: { browse: 0.83, product: 0.1, orders: 0.07 },
+  states: {
+    browse: {
+      run: async (c, s) => { const r = await c.http('GET', `/api/catalog/products?category=${CATS[c.rand(CATS.length)]}&limit=40`); s.list = listOf(r); },
+      next: { product: 0.6, browse: 0.2, exit: 0.2 },
+    },
+    product: {
+      run: async (c, s) => {
+        const list = s.list ?? [];
+        // popular products are looked at far more than the long tail
+        const pick = list.length ? list[Math.min(list.length - 1, popular(Math.random()) % list.length)] : { id: popular(Math.random()), price_cents: 1000 };
+        const d = await c.http('GET', `/api/catalog/products/${pick.id}`);
+        s.item = { id: pick.id, price: d.data?.price_cents ?? pick.price_cents ?? 1000 };
+      },
+      next: { product: 0.25, browse: 0.2, add: 0.3, exit: 0.25 },
+    },
+    add: {
+      run: async (c, s) => { const it = s.item ?? { id: popular(Math.random()), price: 1000 }; await c.http('POST', `/api/cart/${c.user()}/items`, { productId: it.id, qty: 1, priceCents: it.price }); s.inCart = true; },
+      next: { cart: 0.45, browse: 0.3, product: 0.15, exit: 0.1 },
+    },
+    cart: {
+      run: async (c) => { await c.http('GET', `/api/cart/${c.user()}`); },
+      next: { checkout: 0.35, browse: 0.25, exit: 0.4 },
+    },
+    checkout: {
+      run: async (c, s) => { if (s.inCart) await c.http('POST', '/api/checkout', { userId: c.user(), email: `${c.user()}@example.test` }); },
+      next: { orders: 0.6, exit: 0.4 },
+    },
+    orders: {
+      run: async (c) => { await c.http('GET', `/api/orders?userId=${c.user()}`); },
+      next: { browse: 0.2, exit: 0.8 },
+    },
+  },
+};

@@ -157,3 +157,18 @@ free -h; df -h /                                 # memory / disk
 * Keep SSH (22) and the app port restricted to *My IP* when not demoing.
 * The `.pem` never goes in GitHub; copy it between machines securely and rotate it if it was ever shared.
 * Stop/terminate the instance when done to avoid charges.
+
+## Organic faults and traffic (faultlab)
+
+Blind, reproducible fault injection plus organic traffic. Full specification, pseudocode, flowcharts and the maths: [FAULT_INJECTION.md](FAULT_INJECTION.md).
+
+```bash
+node lab/faultlab/faultlab.mjs shopflow list                                       # services, what breaks if each fails, fault classes
+node lab/faultlab/faultlab.mjs shopflow plan --seed 7 --duration 1h                # what a seed would do (touches nothing)
+node lab/faultlab/faultlab.mjs shopflow run --profile realistic --duration 4h      # real-time campaign; Ctrl-C heals
+node lab/faultlab/faultlab.mjs shopflow run --profile stormy --duration 2h --blind # operator sees nothing; read the ledger after
+node lab/faultlab/faultlab.mjs shopflow inject <service> <crash|crash-loop|stop|pause|brownout|memory|partition|flap> [--for 90s] [--severity 0.9] [--ramp 30]
+node lab/faultlab/faultlab.mjs shopflow heal                                       # restore everything to its declared configuration
+node lab/faultlab/faultlab.mjs shopflow status
+cat ~/.faultlab/ledger-shopflow.jsonl                                             # ground truth, private to the host
+```
