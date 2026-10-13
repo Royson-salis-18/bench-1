@@ -23,6 +23,7 @@ const composeFile = path.resolve(here, '..', '..', subject, 'docker-compose.yml'
 const cli = path.join(here, 'faultlab.mjs');
 
 let campaign = null; // { proc, startedAt, args, log[] }
+let trafficSettings = null; // last { baseRps, mode, at } applied from the panel
 const logs = [];
 const note = (s) => { logs.push(`${new Date().toISOString().slice(11, 19)} ${s}`); if (logs.length > 200) logs.shift(); };
 
@@ -51,7 +52,7 @@ const routes = {
     return {
       subject, services: Object.entries(catalog.services).map(([name, s]) => ({ name, role: s.role, state: st[name] ?? 'absent' })),
       classes: Object.entries(CLASSES).map(([name, c]) => ({ name, desc: c.desc })), profiles: Object.keys(PROFILES),
-      traffic: st.traffic ?? 'absent', campaign: campaign ? { startedAt: campaign.startedAt, args: campaign.args } : null, log: logs.slice(-40),
+      traffic: st.traffic ?? 'absent', trafficSettings, campaign: campaign ? { startedAt: campaign.startedAt, args: campaign.args } : null, log: logs.slice(-40),
     };
   },
   'POST /api/campaign': async (req) => {
@@ -92,6 +93,7 @@ const routes = {
         if (Number(b.baseRps) > 0) env.TRAFFIC_BASE_RPS = String(Number(b.baseRps));
         if (['organic', 'steady'].includes(b.mode)) env.TRAFFIC_MODE = b.mode;
         execFileSync('docker', ['compose', '-p', catalog.project, '-f', composeFile, '--profile', 'traffic', 'up', '-d', '--force-recreate', 'traffic'], { env, stdio: 'pipe' });
+        trafficSettings = { baseRps: env.TRAFFIC_BASE_RPS ?? null, mode: env.TRAFFIC_MODE ?? null, at: Date.now() };
       }
       note(`traffic ${b.action}${b.baseRps ? ` base ${b.baseRps} rps` : ''}${b.mode ? ` ${b.mode}` : ''}`);
       return { ok: true };

@@ -1,54 +1,128 @@
 <!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Faultlab panel</title>
 <style>
-:root{--bg:#0f1115;--card:#171a21;--ink:#e6e8ee;--mut:#8b93a3;--line:#262b36;--acc:#6b8cff;--bad:#ef6a5b;--ok:#4cc38a}
-*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.45 system-ui,sans-serif;padding:20px;max-width:1100px;margin:auto}
-h1{font-size:18px;margin:0 0 4px}p.s{color:var(--mut);margin:0 0 16px}
-.g{display:grid;grid-template-columns:1fr 1fr;gap:14px}@media(max-width:800px){.g{grid-template-columns:1fr}}
-.c{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px}.c h2{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--mut);margin:0 0 10px}
-label{display:block;color:var(--mut);font-size:12px;margin:8px 0 3px}input,select{width:100%;background:#0f1218;color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:7px}
-button{background:var(--acc);color:#fff;border:0;border-radius:6px;padding:8px 12px;cursor:pointer;font-weight:600}button.x{background:transparent;border:1px solid var(--line);color:var(--ink)}button.d{background:var(--bad)}
-.row{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}.chips{display:flex;flex-wrap:wrap;gap:6px}
-.chip{border:1px solid var(--line);border-radius:999px;padding:3px 10px;font-size:12px;cursor:pointer;user-select:none}.chip.on{border-color:var(--acc);background:#6b8cff22}
-.dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;background:var(--mut)}.running .dot{background:var(--ok)}.exited .dot,.paused .dot,.restarting .dot{background:var(--bad)}
-pre{margin:0;max-height:220px;overflow:auto;font-size:12px;color:var(--mut)}#msg{color:var(--bad);min-height:18px;font-size:12px}
+:root{--bg:#0f1115;--card:#171a21;--ink:#e6e8ee;--mut:#8b93a3;--line:#262b36;--acc:#6b8cff;--bad:#ef6a5b;--ok:#4cc38a;--warn:#e5b45a}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.45 system-ui,sans-serif}
+main{max-width:1180px;margin:0 auto;padding:24px 16px 40px}
+h1{font-size:20px;margin:0 0 4px}p.s{color:var(--mut);margin:0 0 18px;max-width:760px}
+/* minmax(0,1fr): long log lines and long <option> text must not widen a column */
+.g{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+@media(max-width:860px){.g{grid-template-columns:minmax(0,1fr)}}
+.c{min-width:0;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px 18px}
+.c h2{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--mut);margin:0 0 12px;display:flex;justify-content:space-between;align-items:center;gap:8px}
+.c h2.sp{margin-top:22px;padding-top:16px;border-top:1px solid var(--line)}
+.two{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 12px}
+label{display:block;color:var(--mut);font-size:12px;margin:10px 0 4px}
+input,select{width:100%;min-width:0;background:#0f1218;color:var(--ink);border:1px solid var(--line);border-radius:7px;padding:8px 9px;font:inherit;text-overflow:ellipsis}
+input:focus,select:focus{outline:2px solid #6b8cff66;border-color:var(--acc)}
+input::placeholder{color:#5c6475}
+button{background:var(--acc);color:#fff;border:0;border-radius:7px;padding:9px 14px;cursor:pointer;font-weight:600;font:inherit;font-weight:600}
+button:disabled{opacity:.5;cursor:wait}
+button.x{background:transparent;border:1px solid var(--line);color:var(--ink)}button.d{background:var(--bad)}
+.row{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{border:1px solid var(--line);border-radius:999px;padding:4px 11px;font-size:12px;cursor:pointer;user-select:none}
+.chip.on{border-color:var(--acc);background:#6b8cff26;color:#fff}
+.pill{font-size:11px;letter-spacing:0;text-transform:none;border-radius:999px;padding:2px 9px;border:1px solid var(--line);color:var(--mut)}
+.pill.on{color:var(--ok);border-color:#4cc38a66}
+.hint{color:var(--mut);font-size:12px;margin-top:4px}
+.svc{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:8px;align-items:center;padding:5px 0;border-bottom:1px solid #1f232c}
+.svc:last-child{border:0}.svc .r{color:var(--mut);font-size:12px}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--mut)}.running .dot{background:var(--ok)}.exited .dot,.paused .dot,.restarting .dot,.dead .dot{background:var(--bad)}.absent .dot{background:var(--warn)}
+pre{margin:0;max-height:360px;overflow:auto;font-size:12px;color:var(--mut);white-space:pre-wrap;word-break:break-word}
+#msg{min-height:20px;font-size:13px;margin-bottom:8px}#msg.err{color:var(--bad)}#msg.ok{color:var(--ok)}
 </style>
+<main>
 <h1>Faultlab panel <span id=sub style="color:var(--mut);font-weight:400"></span></h1>
-<p class=s>Choose where faults may land and how hard. The mapper is not told anything; it has to notice by itself. Everything is written to the private ledger.</p>
+<p class=s>Choose where faults may land and how hard. The mapper is not told anything; it has to notice by itself. Everything is written to the private ledger. Your inputs are remembered in this browser.</p>
 <div id=msg></div>
 <div class=g>
-<div class=c><h2>Campaign (random faults)</h2><div id=cstat style="color:var(--mut);margin-bottom:6px"></div>
-<label>Profile</label><select id=profile></select>
-<label>Duration (minutes)</label><input id=minutes type=number value=30 min=1 max=480>
-<label>Faults per minute (blank = profile default)</label><input id=rate type=number step=0.05 placeholder="profile default">
-<label>Max faults at once</label><input id=maxc type=number min=1 placeholder="profile default">
-<label>Seed (blank = random)</label><input id=seed placeholder="reproducible if set">
-<label>Fault types allowed (none selected = all)</label><div class=chips id=classes></div>
-<label>Services faults may hit (none selected = all)</label><div class=chips id=targets></div>
-<div class=row><button id=start>Start campaign</button><button class=d id=stop>Stop and heal</button></div></div>
-<div class=c><h2>One fault by hand</h2>
-<label>Service</label><select id=isvc></select><label>Fault</label><select id=icls></select>
-<label>Severity (0.1 - 1)</label><input id=isev type=number step=0.1 value=0.8 min=0.1 max=1><label>Hold for (seconds)</label><input id=isec type=number value=60>
-<div class=row><button id=inj>Inject</button><button class=x id=healall>Heal everything</button></div>
-<h2 style="margin-top:18px">Traffic</h2><div id=tstat style="color:var(--mut)"></div>
-<label>Average requests per second</label><input id=rps type=number step=0.1 placeholder="default"><label>Shape</label><select id=mode><option value=organic>organic (daily wave, bursts)</option><option value=steady>steady</option></select>
-<div class=row><button id=tstart>Start / apply</button><button class=x id=tstop>Stop traffic</button></div></div>
-<div class=c><h2>Services</h2><div id=svcs></div></div>
-<div class=c><h2>Log</h2><pre id=log></pre></div>
+<section class=c><h2>Campaign (random faults) <span id=cstat class=pill>…</span></h2>
+<div class=two>
+<div><label for=profile>Profile</label><select id=profile></select></div>
+<div><label for=minutes>Duration (minutes)</label><input id=minutes type=number value=30 min=1 max=480></div>
+<div><label for=rate>Faults per minute</label><input id=rate type=number step=0.05 min=0 placeholder="profile default"></div>
+<div><label for=maxc>Max faults at once</label><input id=maxc type=number min=1 placeholder="profile default"></div>
 </div>
+<label for=seed>Seed</label><input id=seed placeholder="blank = random; set it to make a run reproducible">
+<label>Fault types allowed <span class=hint>(none selected = all)</span></label><div class=chips id=classes></div>
+<label>Services faults may hit <span class=hint>(none selected = all)</span></label><div class=chips id=targets></div>
+<div id=cargs class=hint></div>
+<div class=row><button id=start>Start campaign</button><button class=d id=stop>Stop and heal</button></div>
+</section>
+<section class=c><h2>One fault by hand</h2>
+<label for=isvc>Service</label><select id=isvc></select>
+<label for=icls>Fault</label><select id=icls></select><div id=idesc class=hint></div>
+<div class=two>
+<div><label for=isev>Severity (0.1 – 1)</label><input id=isev type=number step=0.1 value=0.8 min=0.1 max=1></div>
+<div><label for=isec>Hold for (seconds, 5 – 1800)</label><input id=isec type=number value=60 min=5 max=1800></div>
+</div>
+<div class=row><button id=inj>Inject</button><button class=x id=healall>Heal everything</button></div>
+<h2 class=sp>Traffic <span id=tstat class=pill>…</span></h2>
+<div class=two>
+<div><label for=rps>Average requests per second</label><input id=rps type=number step=0.1 min=0 placeholder="default"></div>
+<div><label for=mode>Shape</label><select id=mode><option value=organic>organic (daily wave, bursts)</option><option value=steady>steady</option></select></div>
+</div>
+<div id=tapplied class=hint></div>
+<div class=row><button id=tstart>Start / apply</button><button class=x id=tstop>Stop traffic</button></div>
+</section>
+<section class=c><h2>Services <span id=scount class=pill></span></h2><div id=svcs></div></section>
+<section class=c><h2>Log</h2><pre id=log></pre></section>
+</div>
+</main>
 <script>
-const $=i=>document.getElementById(i),sel={classes:new Set,targets:new Set};
-const post=async(u,b)=>{const r=await(await fetch(u,{method:'POST',headers:{'x-panel':'1','content-type':'application/json'},body:JSON.stringify(b||{})})).json();$('msg').textContent=r.error||'';return r};
-function chips(id,items,set){const el=$(id);if(el.dataset.built)return;el.dataset.built=1;items.forEach(n=>{const c=document.createElement('span');c.className='chip';c.textContent=n;c.onclick=()=>{set.has(n)?set.delete(n):set.add(n);c.classList.toggle('on')};el.append(c)})}
-async function tick(){const s=await(await fetch('/api/state')).json();$('sub').textContent='· '+s.subject;
-if(!$('profile').options.length){s.profiles.forEach(p=>$('profile').add(new Option(p,p)));$('profile').value='realistic';s.services.forEach(v=>$('isvc').add(new Option(v.name+' ('+v.role+')',v.name)));s.classes.forEach(c=>$('icls').add(new Option(c.name+' - '+c.desc,c.name)))}
-chips('classes',s.classes.map(c=>c.name),sel.classes);chips('targets',s.services.map(v=>v.name),sel.targets);
-$('cstat').textContent=s.campaign?'running since '+new Date(s.campaign.startedAt).toLocaleTimeString()+' ('+s.campaign.args.join(' ')+')':'not running';
-$('tstat').textContent='traffic container: '+s.traffic;
-$('svcs').innerHTML=s.services.map(v=>'<div class="'+v.state+'"><span class=dot></span>'+v.name+' <span style="color:var(--mut)">'+v.role+' - '+v.state+'</span></div>').join('');
-$('log').textContent=s.log.join('\n')}
-$('start').onclick=()=>post('/api/campaign',{profile:$('profile').value,minutes:$('minutes').value,ratePerMin:$('rate').value,maxConcurrent:$('maxc').value,seed:$('seed').value,classes:[...sel.classes],targets:[...sel.targets]}).then(tick);
-$('stop').onclick=()=>post('/api/stop').then(tick);$('healall').onclick=()=>post('/api/heal').then(tick);
-$('inj').onclick=()=>post('/api/inject',{service:$('isvc').value,class:$('icls').value,severity:$('isev').value,seconds:$('isec').value}).then(tick);
-$('tstart').onclick=()=>post('/api/traffic',{action:'start',baseRps:$('rps').value,mode:$('mode').value}).then(tick);$('tstop').onclick=()=>post('/api/traffic',{action:'stop'}).then(tick);
+const $=i=>document.getElementById(i);
+const FIELDS=['profile','minutes','rate','maxc','seed','isvc','icls','isev','isec','rps','mode'];
+const KEY='faultlab-panel:'+location.port;
+const sel={classes:new Set,targets:new Set};
+let descs={},built=false;
+const load=()=>{try{return JSON.parse(localStorage.getItem(KEY))||{}}catch{return{}}};
+const save=()=>{try{const o={classes:[...sel.classes],targets:[...sel.targets]};FIELDS.forEach(f=>o[f]=$(f).value);localStorage.setItem(KEY,JSON.stringify(o))}catch{}};
+const say=(t,ok)=>{$('msg').textContent=t||'';$('msg').className=ok?'ok':'err'};
+async function post(u,b,btn){
+  if(btn)btn.disabled=true;
+  try{const r=await(await fetch(u,{method:'POST',headers:{'x-panel':'1','content-type':'application/json'},body:JSON.stringify(b||{})})).json();
+    say(r.error||'Done.',!r.error);return r}
+  catch(e){say('Panel unreachable: is the SSH tunnel still open? ('+e.message+')')}
+  finally{if(btn)btn.disabled=false;tick()}
+}
+function chips(id,items,set){const el=$(id);items.forEach(n=>{const c=document.createElement('span');c.className='chip'+(set.has(n)?' on':'');c.textContent=n;c.onclick=()=>{set.has(n)?set.delete(n):set.add(n);c.classList.toggle('on');save()};el.append(c)})}
+function build(s){
+  const saved=load();
+  s.profiles.forEach(p=>$('profile').add(new Option(p,p)));$('profile').value='realistic';
+  s.services.forEach(v=>$('isvc').add(new Option(v.name+' ('+v.role+')',v.name)));
+  s.classes.forEach(c=>{descs[c.name]=c.desc;$('icls').add(new Option(c.name,c.name))});
+  // Restore what was typed last time, but only values the current options still allow.
+  FIELDS.forEach(f=>{if(saved[f]==null)return;const el=$(f);if(el.tagName==='SELECT'&&![...el.options].some(o=>o.value===saved[f]))return;el.value=saved[f]});
+  (saved.classes||[]).forEach(n=>descs[n]&&sel.classes.add(n));
+  (saved.targets||[]).forEach(n=>s.services.some(v=>v.name===n)&&sel.targets.add(n));
+  chips('classes',s.classes.map(c=>c.name),sel.classes);chips('targets',s.services.map(v=>v.name),sel.targets);
+  FIELDS.forEach(f=>{$(f).addEventListener('input',save);$(f).addEventListener('change',save)});
+  $('icls').addEventListener('change',()=>$('idesc').textContent=descs[$('icls').value]||'');
+  $('idesc').textContent=descs[$('icls').value]||'';
+  built=true;
+}
+const esc=t=>String(t).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+async function tick(){
+  let s;try{s=await(await fetch('/api/state')).json()}catch(e){say('Panel unreachable: is the SSH tunnel still open?');return}
+  if(!built)build(s);
+  // Only status elements are rewritten here; inputs are never touched after the first load.
+  $('sub').textContent='· '+s.subject;
+  $('cstat').textContent=s.campaign?'running since '+new Date(s.campaign.startedAt).toLocaleTimeString():'not running';
+  $('cstat').className='pill'+(s.campaign?' on':'');
+  $('cargs').textContent=s.campaign?'Running: '+s.campaign.args.join(' '):'';
+  $('tstat').textContent=s.traffic;$('tstat').className='pill'+(s.traffic==='running'?' on':'');
+  const t=s.trafficSettings;
+  $('tapplied').textContent=t?'Last applied: '+(t.baseRps?t.baseRps+' rps':'default rps')+', '+(t.mode||'default shape')+' at '+new Date(t.at).toLocaleTimeString():'';
+  const up=s.services.filter(v=>v.state==='running').length;$('scount').textContent=up+'/'+s.services.length+' running';
+  $('svcs').innerHTML=s.services.map(v=>'<div class="svc '+esc(v.state)+'"><span class=dot></span><span>'+esc(v.name)+' <span class=r>'+esc(v.role)+'</span></span><span class=r>'+esc(v.state)+'</span></div>').join('');
+  const lg=$('log'),atBottom=lg.scrollTop+lg.clientHeight>=lg.scrollHeight-4;
+  lg.textContent=s.log.join('\n');if(atBottom)lg.scrollTop=lg.scrollHeight;
+}
+$('start').onclick=e=>post('/api/campaign',{profile:$('profile').value,minutes:$('minutes').value,ratePerMin:$('rate').value,maxConcurrent:$('maxc').value,seed:$('seed').value,classes:[...sel.classes],targets:[...sel.targets]},e.target);
+$('stop').onclick=e=>post('/api/stop',null,e.target);$('healall').onclick=e=>post('/api/heal',null,e.target);
+$('inj').onclick=e=>post('/api/inject',{service:$('isvc').value,class:$('icls').value,severity:$('isev').value,seconds:$('isec').value},e.target);
+$('tstart').onclick=e=>post('/api/traffic',{action:'start',baseRps:$('rps').value,mode:$('mode').value},e.target);
+$('tstop').onclick=e=>post('/api/traffic',{action:'stop'},e.target);
 tick();setInterval(tick,3000);
 </script>
